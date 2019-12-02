@@ -1,5 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { MapsAPILoader, MouseEvent } from '@agm/core';
+import { Component, OnInit, ViewChild, ElementRef, NgZone } from '@angular/core';
 
+declare var google: any;
 
 @Component({
     selector: 'app-home',
@@ -7,62 +9,88 @@ import { Component, OnInit } from '@angular/core';
     styleUrls: ['./home.component.scss']
 })
 export class HomeComponent implements OnInit {
-
-    constructor() { }
-    location: Location
-    selectedMarker: Marker
-
-    ngOnInit() {
-        this.location = {
-            latitude: 16.061255,
-            longitude: 108.160061,
-            mapType: "satelite",
-            zoom: 15,
-            markers: [
-                {
-                    lat:16.061255 ,
-                    lng: 108.160061,
-                    label: "new york"
-
-                }
-            ]
-        }
-    }
-
-    addMarker(lat: number, lng: number) {
-        this.location.markers.push({
-            lat,
-            lng,
-            label: Date.now().toLocaleString()
-
-        })
-    }
-
-    // selectMarker(event) {
-    //     this.selectedMarker = {
-    //         lat: event.latitude,
-    //         lng: event.longitude,
-    //         label: 
-    //     }
-    // }
-
-    markerDragEnd(coords: any, $event: MouseEvent) {
-        this.location.latitude = coords.latitude
-        this.location.longitude = coords.longitude
-    }
-}
-
-interface Marker {
-    lat: number;
-    lng: number;
-    label: string;
-
-}
-
-interface Location {
+    title: string = 'AGM project';
     latitude: number;
     longitude: number;
-    mapType: string;
     zoom: number;
-    markers: Array<Marker>;
-}
+    address: string;
+    private geoCoder;
+  
+    @ViewChild('search',null)
+    public searchElementRef: ElementRef;
+  
+  
+    constructor(
+      private mapsAPILoader: MapsAPILoader,
+      private ngZone: NgZone
+    ) { }
+  
+  
+    ngOnInit() {
+      //load Places Autocomplete
+      this.mapsAPILoader.load().then(() => {
+        this.setCurrentLocation();
+        this.geoCoder = new google.maps.Geocoder;
+  
+        let autocomplete = new google.maps.places.Autocomplete(this.searchElementRef.nativeElement, {
+          types: ["address"]
+        });
+        autocomplete.addListener("place_changed", () => {
+          this.ngZone.run(() => {
+            //get the place result
+            let place: google.maps.places.PlaceResult = autocomplete.getPlace();
+  
+            //verify result
+            if (place.geometry === undefined || place.geometry === null) {
+              return;
+            }
+  
+            //set latitude, longitude and zoom
+            this.latitude = place.geometry.location.lat();
+            this.longitude = place.geometry.location.lng();
+            this.zoom = 12;
+          });
+        });
+      });
+    }
+  
+    // Get Current Location Coordinates
+    private setCurrentLocation() {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          this.latitude = position.coords.latitude;
+          this.longitude = position.coords.longitude;
+          this.zoom = 8;
+          this.getAddress(this.latitude, this.longitude);
+        });
+      }
+    }
+  
+  
+    markerDragEnd($event: MouseEvent) {
+      console.log($event);
+      this.latitude = $event.coords.lat;
+      this.longitude = $event.coords.lng;
+      this.getAddress(this.latitude, this.longitude);
+    }
+  
+    getAddress(latitude, longitude) {
+      this.geoCoder.geocode({ 'location': { lat: latitude, lng: longitude } }, (results, status) => {
+        console.log(results);
+        console.log(status);
+        if (status === 'OK') {
+          if (results[0]) {
+            this.zoom = 12;
+            this.address = results[1].formatted_address;
+          } else {
+            window.alert('No results found');
+          }
+        } else {
+          window.alert('Geocoder failed due to: ' + status);
+        }
+  
+      });
+    }
+  
+  }
+  
